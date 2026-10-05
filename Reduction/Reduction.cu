@@ -1,19 +1,41 @@
 #include <iostream>
+#include <cuda/atomic>
 
+#define SIZE 512
 
+__global__ void ConvergentReduction(unsigned int* in , unsigned int* out , int length){
+    int seg = 2*blockDim.x * blockIdx.x;
+    int i = seg + threadIdx.x;
 
-__global__ void ConvergentReduction(float* in , float* out){
-    int tx = threadIdx.x;
-    int seg = blockIdx.x * blockDim.x * 2;
+    __shared__ unsigned int in_s[SIZE];
+    
+    
+    for(int j = 0; j < 2*blockDim.x ; j+=blockDim.x ){
+        if ( i < length){
+             in_s[threadIdx.x+j] = in[i+j];
+        }else{
+             in_s[threadIdx.x+j] = 0;
+        }
+            
+    }
+      
+
+    __syncthreads();
+
 
     for(int stride = blockDim.x; stride >= 1; stride /= 2){
-        if( i < stride )
-            in[i] += in[i +stride];
+        
+        if( threadIdx.x < stride ){
+            in_s[threadIdx.x] += in_s[threadIdx.x+stride];
+        }
+            
         __syncthreads();
         
     }
-    if (threadIdx.x == 0)
-        *out = in[threadIdx.x];
+    if (threadIdx.x == 0) {
+        cuda::atomic_ref<unsigned int, cuda::thread_scope_device> outRef(*out);
+        outRef.fetch_add(in_s[0], cuda::memory_order_relaxed);
+    }
 
 
 }
@@ -22,10 +44,10 @@ __global__ void ConvergentReduction(float* in , float* out){
 int main(){
 
 
-    float* A_h, *R_h;
+    unsigned int* A_h, *R_h;
 
-    A_h = (float * ) malloc(4096*sizeof(float));
-    R_h = (float * ) malloc(1*sizeof(float));
+    A_h = (unsigned int * ) malloc(4096*sizeof(unsigned int));
+    R_h = (unsigned int * ) malloc(1*sizeof(unsigned int));
 
     for(int i = 0 ; i < 4096; i++){
         A_h[i] = i;
@@ -33,24 +55,24 @@ int main(){
     R_h[0] = 0;
 
 
-    float * A_d, *R_d;
+    unsigned int * A_d, *R_d;
     void*  t_A, *t_R;
 
-    cudaMalloc(&t_A,4096*sizeof(float));
-    cudaMalloc(&t_R,1*sizeof(float));
+    cudaMalloc(&t_A,4096*sizeof(unsigned int));
+    cudaMalloc(&t_R,1*sizeof(unsigned int));
 
-    A_d = static_cast<float*>(t_A);
-    R_d = static_cast<float*>(t_R);
+    A_d = static_cast<unsigned int*>(t_A);
+    R_d = static_cast<unsigned int*>(t_R);
 
-    cudaMemcpy(A_d, A_h,4096*sizeof(float),cudaMemcpyHostToDevice );
-    cudaMemcpy(R_d, R_h,1*sizeof(float),cudaMemcpyHostToDevice );
+    cudaMemcpy(A_d, A_h,4096*sizeof(unsigned int),cudaMemcpyHostToDevice );
+    cudaMemcpy(R_d, R_h,1*sizeof(unsigned int),cudaMemcpyHostToDevice );
 
     dim3 GridDim(8,1,1);
     dim3 BlockDim(256,1,1);
 
-    ConvergentReduction<<<GridDim,BlockDim>>>(A_d,R_d);
+    ConvergentReduction<<<GridDim,BlockDim>>>(A_d,R_d,4096);
 
-    cudaMemcpy(R_h,R_d,1*sizeof(float),cudaMemcpyDeviceToHost );
+    cudaMemcpy(R_h,R_d,1*sizeof(unsigned int),cudaMemcpyDeviceToHost );
 
     std::cout << R_h[0] << std::endl;
 

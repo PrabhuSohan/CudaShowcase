@@ -4,6 +4,10 @@ if(NOT DEFINED CMAKE_CUDA_COMPILER)
     set(CMAKE_CUDA_COMPILER $ENV{HOME}/cuda12.4/bin/nvcc)
 endif()
 
+if(NOT DEFINED CMAKE_CUDA_ARCHITECTURES)
+    set(CMAKE_CUDA_ARCHITECTURES native)
+endif()
+
 project(main LANGUAGES CXX CUDA)
 
 # Language standards
@@ -14,9 +18,7 @@ set(CMAKE_CUDA_STANDARD_REQUIRED ON)
 
 # Target GPU architecture: "native" builds for the GPU in this machine.
 # Override from the command line, e.g. -DCMAKE_CUDA_ARCHITECTURES="75;86"
-if(NOT DEFINED CMAKE_CUDA_ARCHITECTURES)
-    set(CMAKE_CUDA_ARCHITECTURES native)
-endif()
+
 
 # Default to Release if no build type is given
 if(NOT CMAKE_BUILD_TYPE)
