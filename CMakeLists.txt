@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.24)
 
 if(NOT DEFINED CMAKE_CUDA_COMPILER)
-    set(CMAKE_CUDA_COMPILER /home/cuda12.4/bin/nvcc)
+    set(CMAKE_CUDA_COMPILER $ENV{HOME}/cuda12.4/bin/nvcc)
 endif()
 
 if(NOT DEFINED CMAKE_CUDA_ARCHITECTURES)
@@ -31,8 +31,6 @@ add_executable(main main.cu)
 
 # Needed if you split kernels across multiple .cu files and call device
 # functions between them
-set_target_properties(cuda_example PROPERTIES
+set_target_properties(main PROPERTIES
     CUDA_SEPARABLE_COMPILATION ON
 )
-
-target_link_libraries(cuda_example PRIVATE CUDA::cudart)
