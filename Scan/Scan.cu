@@ -176,6 +176,45 @@ __global__ void coarsenedParrallelScan(unsigned int* in, unsigned int N){
 }
 
 
+__global__ void regTilingParallelScan(unsigned int* in ,unsigned int N){
+    unsigned int blockSeg = COARSE_FACTOR*blockDim.x*blockIdx.x;
+    unsigned int threadSeg = COARSE_FACTOR*threadIdx.x;
+
+    __shared__ unsigned int in_s[BLOCK_DIM*COARSE_FACTOR];
+
+    for(int c = 0; c <COARSE_FACTOR;c++){
+        in_s[ c*blockDim.x  + threadIdx.x ] += in[blockSeg + c*blockDim.x + threadIdx.x];
+    }
+
+    __syncthreads();
+
+    unsigned int reg_S[COARSE_FACTOR];
+    reg_S[0] = in_s[threadSeg];
+    #pragma unroll
+    for(int c = 1; c <COARSE_FACTOR;c++){
+        reg_S[c] = in_s[threadSeg+c] + reg_S[c-1];
+    }
+    unsigned int tSum = reg_S[COARSE_FACTOR-1];
+    tSum = BlockScan(tSum);
+
+    __shared__ unsigned int t_S[BLOCK_DIM];
+    t_S[threadIdx.x] = tSum;
+    __syncthreads();
+
+    unsigned int pSum = (threadIdx.x > 0)? t_S[threadIdx.x - 1]:0;
+    #pragma unroll
+    for(unsigned int c = 0 ; c < COARSE_FACTOR; c++){
+        in_s[threadSeg+c] = reg_S[c] + pSum;
+    }
+    __syncthreads();
+
+    for(int c = 0; c <COARSE_FACTOR;c++){
+            in[blockSeg + c*blockDim.x + threadIdx.x] = in_s[ c*blockDim.x  + threadIdx.x ];
+    }
+
+}
+
+
 
 
 
@@ -212,7 +251,7 @@ int main(){
     
     
 
-    coarsenedParrallelScan<<<GridDim,BlockDim>>>(A_d,256);
+    regTilingParallelScan<<<GridDim,BlockDim>>>(A_d,256);
 
     cudaMemcpy(A_h,A_d,256*sizeof(unsigned int),cudaMemcpyDeviceToHost );
     for(int i = 0; i < 256; i++ ){

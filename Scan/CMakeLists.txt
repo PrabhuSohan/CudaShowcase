@@ -27,7 +27,7 @@ endif()
 
 find_package(CUDAToolkit REQUIRED)
 
-add_executable(main Scan.cu)
+add_executable(main BrentKungScan.cu)
 
 # Needed if you split kernels across multiple .cu files and call device
 # functions between them
